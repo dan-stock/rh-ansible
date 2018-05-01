@@ -1,0 +1,11 @@
+---
+- name: first play in this book 
+  hosts: all
+  tasks:
+    - name: first task add user
+      user: 
+        name: fred
+        uid: 4001
+        state: present
+
+...

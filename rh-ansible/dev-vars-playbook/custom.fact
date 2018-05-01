@@ -1,0 +1,7 @@
+[packages]
+web_packages = httpd
+db_packages = mariadb-server
+
+[users]
+user1 = joe
+user2 = jane

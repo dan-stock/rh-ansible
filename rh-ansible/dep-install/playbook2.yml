@@ -1,0 +1,18 @@
+--- 
+- name: playbook2. Enable httpd
+  hosts: servera.lab.example.com
+  tasks: 
+
+    - name: Install httpd
+      yum: 
+        name: httpd
+        state: latest
+
+    - name: Start Server
+      service:
+        name: httpd
+        state: started
+        enabled: true
+
+
+    

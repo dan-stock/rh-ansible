@@ -1,0 +1,29 @@
+---
+- name: first play in this book 
+  hosts: all
+  remote_user: devops
+  become: true
+  tasks:
+    - name: first task add user
+      user: 
+        name: jack
+        uid: 4002
+        state: present
+
+    - name: add jill
+      user: 
+        name: jill
+        uid: 4003
+        state: present
+
+- name: second play in book
+  hosts: serverb.lab.example.com
+  remote_user: devops
+  become: true
+  tasks:
+
+    - name: copy motd
+      copy:
+        content: "Managed by Ansible\n" 
+        dest: /etc/motd
+...

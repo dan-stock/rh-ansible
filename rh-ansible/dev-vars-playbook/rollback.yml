@@ -1,0 +1,63 @@
+---
+
+- name: Deploy and start Apache HTTPD service
+  hosts: webserver
+#  vars: 
+#    web_pkg: httpd
+#    firewall_pkg: firewalld
+#    web_service: httpd
+#    firewall_service: firewalld
+#    python_pkg: python-httplib2
+#    rule: http
+
+  tasks:
+    - name: The {{ firewall_service }} service is stopped 
+      service:
+        name: "{{ firewall_service }}"
+        enabled: false
+        state: stopped
+
+    - name: The {{ web_service }} service is stopped and disabled
+      service:
+        name: "{{ web_service }}"
+        enabled: false
+        state: stopped
+
+    - name: web content is in place 
+      file:
+        state: absent
+        dest: /var/www/html/index.html
+
+    - name: The firewall port for {{ rule }} is open
+      firewalld:
+        service: "{{ rule }}"
+        permanent: false
+        immediate: false
+        state: disabled
+
+    - name: required packages are installed and up to date
+      yum:
+        name:
+          - "{{ web_pkg }}"
+          - "{{ firewall_pkg }}"
+          - "{{ python_pkg }}"
+        state: absent
+
+- name: Verify the Apache Service
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Ensure the webservice is reachable
+      uri: 
+        url: http://servera.lab.example.com 
+        status: 200
+      register: output
+
+    - debug: var=output.msg,output.status
+
+
+
+
+
+
+
