@@ -1,0 +1,12 @@
+{# comment for jinga #} 
+
+# comment on the host file
+
+This system is {{ ansible_distribution }} {{ ansible_distribution_version }}
+Deployed on {{ ansible_hostname }} 
+
+{% for user in users %} 
+Hello to use {{ user }} 
+
+{% endfor %} 
+

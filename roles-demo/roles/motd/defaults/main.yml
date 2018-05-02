@@ -1,0 +1,7 @@
+---
+users: 
+  - tom 
+  - dick 
+  - harry
+
+system_owner: student@workstation.lab.example.com 

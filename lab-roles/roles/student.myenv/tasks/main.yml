@@ -1,0 +1,31 @@
+---
+
+- name: role should fail if the myenv_user is not set 
+  fail: 
+    msg: You must specify the variable 'myenv_user' to use this role
+  when: "myenv_user == ''"
+
+- name: install package 
+  yum: 
+    name: "{{ item }}"
+    state: installed 
+  with_items: "{{ myenv_packages }}"
+
+- name: copy standard profile pict to 
+  copy: 
+    src: profile.png
+    dest: "~{{ myenv_user }}/profile.png" 
+
+- name: set and alias in .bashrc  
+  lineinfile: 
+    line: "alias tree='tree -C'" 
+    dest: "~/{{ myenv_user }}/.bashrc"
+
+- name: install the mkcd file as a template
+  template: 
+    src: mkcd.sh.j2
+    dest: /etc/profile.d/mkcd.sh 
+    owner: root
+    group: root
+    mode: 0644
+

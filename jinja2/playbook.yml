@@ -1,0 +1,28 @@
+---
+- name: play book demo jinja
+  hosts: all
+  user: devops
+  become: yes
+  vars: 
+    system_owner: 
+      - dan
+    users: 
+      - tom
+      - dick
+      - harry
+
+  tasks: 
+    - name: replace motd file 
+      template: 
+        src: motd.j2
+        dest: /etc/motd
+        mode: 0644
+        owner: root
+        group: root 
+
+    - name: place tmp file 
+      template: 
+        src: motd-facts.j2
+        dest: /tmp/file
+        mode: 0644
+        owner: devops

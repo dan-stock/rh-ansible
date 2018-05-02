@@ -1,0 +1,719 @@
+-rw-rw-r--. 1 student student 169 Apr 30 14:14 ./dep-install/playbook.yml
+---
+- name: first play in this book 
+  hosts: all
+  tasks:
+    - name: first task add user
+      user: 
+        name: fred
+        uid: 4001
+        state: present
+
+...
+-rw-rw-r--. 1 student student 274 Apr 30 14:24 ./dep-install/playbook2.yml
+--- 
+- name: playbook2. Enable httpd
+  hosts: servera.lab.example.com
+  tasks: 
+
+    - name: Install httpd
+      yum: 
+        name: httpd
+        state: latest
+
+    - name: Start Server
+      service:
+        name: httpd
+        state: started
+        enabled: true
+
+
+    
+-rw-rw-r--. 1 student student 508 Apr 30 14:42 ./dep-install/playbook1.yml
+---
+- name: first play in this book 
+  hosts: all
+  remote_user: devops
+  become: true
+  tasks:
+    - name: first task add user
+      user: 
+        name: jack
+        uid: 4002
+        state: present
+
+    - name: add jill
+      user: 
+        name: jill
+        uid: 4003
+        state: present
+
+- name: second play in book
+  hosts: serverb.lab.example.com
+  remote_user: devops
+  become: true
+  tasks:
+
+    - name: copy motd
+      copy:
+        content: "Managed by Ansible\n" 
+        dest: /etc/motd
+...
+-rw-rw-r--. 1 student student 799 May  1 16:14 ./dev-failures/playbook.yml
+--- 
+- hosts: databases
+  vars: 
+    web_package: httpd
+    db_package: mariadb-server
+    db_service: mariadb
+
+  tasks: 
+    - name: check the local time
+      command: date
+      register: command_result
+      changed_when: false
+
+    - name: Print the local time
+      debug: 
+        var: command_result["stdout"] 
+
+    - block: 
+      - name: Install {{ web_package }} package 
+        yum: 
+          name: "{{ web_package }}"
+          state: latest
+        failed_when: web_package == "httpd"
+
+      rescue:
+        - name: Install {{ db_package }} package 
+          yum: 
+            name: "{{ db_package }}"
+            state: latest
+
+      always: 
+        - name: Start {{ db_service }} service
+          service:
+            name: "{{ db_service }}"
+            state: started
+      
+
+-rw-rw-r--. 1 student student 769 May  1 14:12 ./dev-flowcontrol/playbook.yml
+---
+- hosts: all
+  vars: 
+    db_package: mariadb-server
+    db_service: mariadb
+    db_users: 
+      - db_admin
+      - db_user
+    configure_database_path: /etc/my.cnf
+
+  tasks: 
+    - name: Create the MariaDB users
+      user: 
+        name: "{{ item }}"
+      with_items: "{{ db_users }}"
+      when: inventory_hostname in groups['databases']
+
+    - name: Install the database packages
+      yum:
+        name: "{{ db_package }}"
+      when: inventory_hostname in groups['databases'] and db_package is defined 
+
+    - name: Configure the database software
+      include: configure_database.yml 
+      vars: 
+        extra_packages: 
+          - mariadb-bench
+          - mariadb-libs
+          - mariadb-test
+      when: configure_database_path is defined
+
+
+      
+-rw-rw-r--. 1 student student 375 May  1 14:12 ./dev-flowcontrol/configure_database.yml
+  - yum: 
+      name: "{{ extra_packages }}"
+
+  - get_url: 
+      url: "http://materials.example.com/task_control/my.cnf"
+      dest: "{{ configure_database_path }}"
+      owner: mysql 
+      group: mysql 
+      mode: 0644
+      seuser: system_u
+      setype: mysqld_etc_t
+      force: yes
+
+  - service: 
+     name: "{{ db_service }}"
+     state: started
+     enabled: true
+
+-rw-rw-r--. 1 student student 1114 May  1 15:44 ./dev-handlers/configure_db.yml
+--- 
+- name: Install MariaDB
+  hosts: databases
+  vars: 
+    db_packages:
+      - mariadb-server
+      - MySQL-python 
+    db_service: mariadb
+    src_file: "http://materials.example.com/task_control/my.cnf.template" 
+    dst_file: /etc/my.cnf
+
+  tasks: 
+    - name: Install {{ db_packages }} packages
+      yum:
+        name: "{{ item }}"
+        state: latest
+      with_items: "{{ db_packages }}"
+      notify:
+        - start_service
+
+    - name: Download and Install the configuration {{ dst_file }}
+      get_url:
+        url: "{{ src_file }}"
+        dest: "{{ dst_file }}"
+        owner: mysql
+        group: mysql 
+        force: yes
+      notify:
+        - restart_service
+        - set_password
+
+    - name: set the MySql password
+      mysql_user:
+        name: root
+        password: redhat
+
+  handlers:
+    - name: start_service
+      service: 
+        name: "{{ db_service }}"
+        state: started
+    - name: restart_service
+      service:
+        name: "{{ db_service }}"
+        state: restarted
+    - name: set_password
+      mysql_user:
+        name: root
+        password: redhat
+
+
+        
+-rw-rw-r--. 1 student student 424 May  1 15:51 ./dev-tags/configure_mail.yml
+---
+- name: Install postfix
+  yum:
+    name: postfix
+    state: latest
+  tags: 
+    - server
+  notify:
+    - start_postfix
+
+- name: Install dovecot
+  yum:
+    name: dovecot
+  tags:
+    - client
+  notify:
+    - start_dovecot
+
+
+- name: download main.cf configuration 
+  get_url: 
+    url: http://materials.example.com/task_control/main.cf
+    dest: /etc/postfix/main.cf
+  tags: 
+    - server
+  notify:
+    - restart_postfix
+
+
+-rw-rw-r--. 1 student student 506 May  1 15:55 ./dev-tags/playbook.yml
+---
+- hosts: all
+  tasks: 
+    - name:
+      include: 
+        configure_mail.yml 
+      when: inventory_hostname in groups['mailservers']
+
+  handlers:
+    - name: start_postfix
+      service: 
+        name: postfix
+        state: started
+    - name: restart_postfix
+      service: 
+        name: postfix
+        state: restarted
+    - name: start_dovecot
+      service: 
+        name: dovecot
+        state: started
+    - name: restart_dovecot
+      service: 
+        name: dovecot
+        state: started
+-rw-rw-r--. 1 student student 355 May  1 11:14 ./dev-vars-facts/setup_facts.yml
+---
+- name: install remote facts
+  hosts: webserver
+  vars:
+    remote_dir: /etc/ansible/facts.d
+    facts_file: custom.fact
+  tasks:
+    - name: create the facts directory
+      file:
+        state: directory
+        recurse: yes
+        path: "{{ remote_dir }}"
+    - name: 
+      copy:
+        src: "{{ facts_file }}"
+        dest: "{{ remote_dir }}"
+
+-rw-rw-r--. 1 student student 59 May  1 11:10 ./dev-vars-facts/custom.fact
+[general]
+package = httpd
+service = httpd
+state = started
+
+-rw-rw-r--. 1 student student 367 May  1 11:48 ./dev-vars-facts/playbook.yml
+---
+- name: Install Apache and start the service
+  hosts: webserver
+
+  tasks: 
+    - name: Install the packages
+      yum:
+        name: "{{ ansible_local.custom.general.package }}"
+        state: latest
+
+    - name: Start the service
+      service:
+        name: "{{ ansible_local.custom.general.service }}"
+        state: "{{ ansible_local.custom.general.state }}"
+-rw-rw-r--. 1 student student 226 May  1 11:52 ./dev-vars-inclusions/tasks/environment.yml
+--- 
+  - name: Install the {{ package }} package
+    yum: 
+      name: "{{ package }}"
+      state: latest
+  
+  - name: Start the {{ service }} service 
+    service:
+      name: "{{ service }}"
+      state: "{{ svc_state }}"
+
+-rw-rw-r--. 1 student student 29 May  1 11:53 ./dev-vars-inclusions/vars/variables.yml
+--- 
+firewall_pkg: firewalld
+-rw-rw-r--. 1 student student 957 May  1 12:04 ./dev-vars-inclusions/playbook.yml
+---
+- name: configure web server
+  hosts: webserver
+  vars: 
+    rule: http
+
+  tasks: 
+    - name: Include the variable from the YAML file
+      include_vars: vars/variables.yml 
+
+    - name: Include the environment file and set the variables
+      include: tasks/environment.yml
+      vars:  
+        package: httpd
+        service: httpd
+        svc_state: started
+
+    - name: Install the firewall
+      yum: 
+        name: "{{ firewall_pkg }}"
+        state: latest
+
+    - name: Start the firewall service
+      service:
+        name: firewalld
+        state: started
+        enabled: true 
+
+    - name: open the port for {{ rule }} 
+      firewalld: 
+        service: "{{ rule }}"
+        immediate: true
+        permanent: true
+        state: enabled
+
+    - name: Create the index.html 
+      copy: 
+        content: "{{ ansible_fqdn }} has been customized using ansible on the {{ ansible_date_time.date }}\n" 
+        dest: /var/www/html/index.html
+
+-rw-rw-r--. 1 student student 1350 May  1 10:26 ./dev-vars-playbook/playbook.yml
+---
+
+- name: Deploy and start Apache HTTPD service
+  hosts: webserver
+#  vars: 
+#    web_pkg: httpd
+#    firewall_pkg: firewalld
+#    web_service: httpd
+#    firewall_service: firewalld
+#    python_pkg: python-httplib2
+#    rule: http
+
+  tasks:
+    - name: required packages are installed and up to date
+      yum:
+        name:
+          - "{{ web_pkg }}"
+          - "{{ firewall_pkg }}"
+          - "{{ python_pkg }}"
+        state: latest
+
+    - name: The {{ firewall_service }} service is started and enabled
+      service:
+        name: "{{ firewall_service }}"
+        enabled: true
+        state: started
+
+    - name: The {{ web_service }} service is started and enabled
+      service:
+        name: "{{ web_service }}"
+        enabled: true
+        state: started
+
+
+    - name: web content is in place 
+      copy:
+        content: "Example web content"
+        dest: /var/www/html/index.html
+
+    - name: The firewall port for {{ rule }} is open
+      firewalld:
+        service: "{{ rule }}"
+        permanent: true
+        immediate: true
+        state: enabled
+
+- name: Verify the Apache Service
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Ensure the webservice is reachable
+      uri: 
+        url: http://servera.lab.example.com 
+        status: 200
+      register: output
+
+    - debug: var=output.msg,output.status
+
+
+
+
+
+
+
+-rw-rw-r--. 1 student student 126 May  1 10:26 ./dev-vars-playbook/host_vars/servera.lab.example.com
+web_pkg: httpd
+firewall_pkg: firewalld
+web_service: httpd
+firewall_service: firewalld
+python_pkg: python-httplib2
+rule: http
+
+-rw-rw-r--. 1 student student 1327 May  1 10:35 ./dev-vars-playbook/rollback.yml
+---
+
+- name: Deploy and start Apache HTTPD service
+  hosts: webserver
+#  vars: 
+#    web_pkg: httpd
+#    firewall_pkg: firewalld
+#    web_service: httpd
+#    firewall_service: firewalld
+#    python_pkg: python-httplib2
+#    rule: http
+
+  tasks:
+    - name: The {{ firewall_service }} service is stopped 
+      service:
+        name: "{{ firewall_service }}"
+        enabled: false
+        state: stopped
+
+    - name: The {{ web_service }} service is stopped and disabled
+      service:
+        name: "{{ web_service }}"
+        enabled: false
+        state: stopped
+
+    - name: web content is in place 
+      file:
+        state: absent
+        dest: /var/www/html/index.html
+
+    - name: The firewall port for {{ rule }} is open
+      firewalld:
+        service: "{{ rule }}"
+        permanent: false
+        immediate: false
+        state: disabled
+
+    - name: required packages are installed and up to date
+      yum:
+        name:
+          - "{{ web_pkg }}"
+          - "{{ firewall_pkg }}"
+          - "{{ python_pkg }}"
+        state: absent
+
+- name: Verify the Apache Service
+  hosts: localhost
+  become: false
+  tasks:
+    - name: Ensure the webservice is reachable
+      uri: 
+        url: http://servera.lab.example.com 
+        status: 200
+      register: output
+
+    - debug: var=output.msg,output.status
+
+
+
+
+
+
+
+-rw-rw-r--. 1 student student 239 May  1 10:47 ./dev-vars-playbook/playsetup.yml
+---
+- name: system facts
+  hosts: all
+#  gather_facts: no
+  tasks:
+
+    - name: display hostname
+      debug: 
+        msg: |
+          "The server name {{ ansible_hostname}}
+          The address is {{ ansible_default_ipv4.address }}" 
+
+
+-rw-rw-r--. 1 student student 95 May  1 10:52 ./dev-vars-playbook/custom.fact
+[packages]
+web_packages = httpd
+db_packages = mariadb-server
+
+[users]
+user1 = joe
+user2 = jane
+-rw-rw-r--. 1 student student 1275 Apr 30 15:33 ./imp-lab/intranet.yml
+---
+- name: Enable intranet services
+  hosts: serverb.lab.example.com
+  remote_user: devops
+  become: yes
+
+  tasks: 
+    - name: latest version of httpd and firewalld insatlled
+      yum: 
+        name: 
+          - httpd
+          - firewalld
+          - mariadb-server
+          - php
+          - php-mysql 
+        state: latest
+    
+    - name: firewalld enabled and running
+      service: 
+        name: firewalld
+        enabled: true
+        state: started
+
+    - name: firewalld permits http service
+      firewalld:
+        service: http
+        permanent: true
+        state: enabled
+        immediate: yes
+
+    - name: httpd enabled and running
+      service: 
+        name: httpd
+        enabled: true
+        state: started
+
+    - name: mariadb enable and runnging
+      service: 
+        name: mariadb
+        enabled: true
+        state: started
+
+    - name: test php page is installed
+      get_url:
+        url: "http://materials.example.com/grading/var/www/html/index.php"
+        dest: /var/www/html/index.php
+        mode: 0644
+
+- name: test intarnet web service
+  hosts: localhost
+  remote_user: devops
+  become: no
+
+  tasks:
+    - name: connect to intranet web server
+      uri:
+        url: http://servera.lab.example.com
+        status_code: 200
+
+...
+-rw-rw-r--. 1 student student 1048 Apr 30 15:18 ./imp-playbook/intranet.yml
+---
+- name: Enable intrate services
+  hosts: servera.lab.example.com
+  remote_user: devops
+  become: yes
+
+  tasks: 
+    - name: latest version of httpd and firewalld insatlled
+      yum: 
+        name: 
+          - httpd
+          - firewalld
+        state: latest
+    
+    - name: firewalld enabled and running
+      service: 
+        name: firewalld
+        enabled: true
+        state: started
+
+    - name: firewalld permits http service
+      firewalld:
+        service: http
+        permanent: true
+        state: enabled
+        immediate: yes
+
+    - name: httpd enabled and running
+      service: 
+        name: httpd
+        enabled: true
+        state: started
+
+    - name: teest html page is installed
+      copy:
+        content: "Welcome to the example.com intranet\n"
+        dest: /var/www/html/index.html 
+
+- name: test intarnet web service
+  hosts: localhost
+  remote_user: devops
+  become: no
+
+  tasks:
+    - name: connect to intranet web server
+      uri:
+        url: http://servera.lab.example.com
+        status_code: 200
+
+...
+-rw-rw-r--. 1 student student 30 May  1 12:16 ./lab-managing-vars/vars/main.yml
+--- 
+web_root: /var/www/html 
+-rw-rw-r--. 1 student student 533 May  1 12:54 ./lab-managing-vars/tasks/main.yml
+---
+  - name: Install and start the database and web services
+    yum: 
+      name: 
+        - "{{ ansible_local.custom.packages.db_package }}"
+        - "{{ ansible_local.custom.packages.web_package }}"
+      state: latest
+
+  - name: Start the database service
+    service: 
+      name: "{{ ansible_local.custom.services.db_service }}"
+      state: started
+      enabled: true
+
+  - name: Start the http service
+    service: 
+      name: "{{ ansible_local.custom.services.web_service }}"
+      state: started
+      enabled: true
+
+
+ 
+-rw-rw-r--. 1 student student 376 May  1 12:15 ./lab-managing-vars/setup_facts.yml
+---
+- name: Install packages
+  hosts: lamp
+  vars: 
+    remote_dir: /etc/ansible/facts.d
+    facts_file: custom.fact
+
+  tasks: 
+    - name: Create the remote dir
+      file: 
+        state: directory
+        recurse: yes
+        path: "{{ remote_dir }}"
+
+    - name: Copy the facts to remote host
+      copy:
+        src: "{{ facts_file }}"
+        dest: "{{ remote_dir }}"
+
+
+-rw-rw-r--. 1 student student 112 May  1 12:11 ./lab-managing-vars/custom.fact
+[packages]
+db_package = mariadb-server
+web_package = httpd
+
+[services]
+db_service = mariadb
+web_service = httpd
+-rw-rw-r--. 1 student student 803 May  1 12:57 ./lab-managing-vars/playbook.yml
+--- 
+- name: Install and configure lamp 
+  hosts: lamp
+  vars: 
+    firewall: firewalld
+
+  tasks:
+    - name: Include the variable file
+      include_vars: vars/main.yml 
+
+    - name: Include the tasks
+      include: tasks/main.yml 
+
+    - name: Install the firewall 
+      yum: 
+        name: "{{ firewall }}"
+        state: latest
+
+    - name: start the firewall
+      service: 
+        name: "{{ firewall }}"
+        state: started
+        enabled: true
+
+    - name: open the port for the web server
+      firewalld:
+        service: 
+        state: enabled
+        immediate: true
+        permanent: true
+
+    - name: Create index.html
+      copy: 
+        content: "{{ ansible_fqdn }}({{ ansible_default_ipv4.address }}) has been customized by Ansible\n"
+        dest: "{{ web_root }}/index.html"
+

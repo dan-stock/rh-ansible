@@ -1,0 +1,6 @@
+--- 
+- hosts: all
+  include: configure_web.yml 
+  
+
+

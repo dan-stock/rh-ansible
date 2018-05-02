@@ -1,0 +1,15 @@
+--- 
+- name: 
+  hosts: all 
+  user: devops
+  become: yes
+
+  pre_tasks: 
+    - shell: echo "Begin MOTD config" 
+
+  roles: 
+    - motd
+#    - { role: motd, system_owner: dan } 
+
+  post_tasks: 
+    - shell: echo "MOTD config finished" 

@@ -1,0 +1,5 @@
+---
+- src: http://materials.example.com/roles-library/student.bash_env.tgz
+  name: studen.bash_env
+
+...

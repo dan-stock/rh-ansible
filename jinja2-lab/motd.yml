@@ -1,0 +1,19 @@
+---
+- name: transer motd template
+  hosts: all
+  vars: 
+    users: 
+      - tom 
+      - john 
+      - joe
+
+  tasks: 
+    - template: 
+        src: files/motd.j2
+        dest: /etc/motd
+        mode: 0644
+        owner: root
+        group: root
+
+
+...

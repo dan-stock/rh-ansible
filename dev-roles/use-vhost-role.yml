@@ -1,0 +1,15 @@
+---
+- name: test myvhost roles
+  hosts: webservers
+
+  pre_tasks: 
+    - debug: 
+        msg: "Beginning web server configuration" 
+
+  roles: 
+    - myvhost
+
+  post_tasks: 
+    - debug: 
+        msg: 'web server has been configured' 
+

@@ -1,0 +1,17 @@
+This system's total memory is: {{ ansible_memtotal_mb }} MBs.
+The current free memory is: {{ ansible_memfree_mb }} MBs.
+
+
+system info: 
+{{ ansible_architecture }}
+{{ ansible_date_time.day }}, {{ ansible_date_time.hour }} {{ ansible_date_time.minute }}
+
+IP is {{ ansible_default_ipv4.address }} 
+MAC is {{ ansible_default_ipv4.macaddress }}
+
+
+{% for user in users %}
+
+hello {{ user }}  
+
+{% endfor %} 
