@@ -1,0 +1,9 @@
+---
+- name: Install postgres
+  yum:
+    name: '{{ item }}'
+    enablerepo: "{{ tower_enable_repo|default(omit) }}"
+    state: installed
+  with_items:
+    - postgresql94-server
+

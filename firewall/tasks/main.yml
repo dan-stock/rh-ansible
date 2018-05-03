@@ -1,0 +1,129 @@
+---
+# Tasks to configure firewall rules
+
+- name: Determine if firewalld is running
+  command: firewall-cmd --state
+  register: firewalld_running
+  ignore_errors: true
+  changed_when: false
+
+- name: Determine if iptables is installed
+  command: iptables --version
+  register: iptables_installed
+  ignore_errors: true
+  changed_when: false
+
+- name: Determine if iptables service is installed
+  stat:
+    path: /lib/systemd/system/iptables.service
+  register: iptables_service
+
+- name: Check to see if there is an iptables config file
+  stat:
+    path: /etc/sysconfig/iptables
+  register: iptables_exists
+  when: iptables_installed.rc == 0
+
+- block:
+    - name: Ensure firewalld is in use
+      fail:
+        msg: "firewalld not in use - skipping firewalld configuration"
+      when: firewalld_running.rc != 0
+
+    - name: Enable base Tower firewall ports
+      firewalld:
+        port: '{{item}}/tcp'
+        permanent: true
+        state: enabled
+        immediate: yes
+      when: inventory_hostname in groups['tower']
+      with_items: "{{ tower_firewall_ports }}"
+
+    - name: Enable HA Tower firewall ports
+      firewalld:
+        port: '{{item}}/tcp'
+        permanent: true
+        state: enabled
+        immediate: yes
+      when: inventory_hostname in groups['tower'] and groups['tower']|length > 1
+      with_items: "{{ tower_firewall_ha_ports }}"
+
+    - name: Enable HA Tower firewall management ports
+      firewalld:
+        port: '{{item}}/tcp'
+        permanent: true
+        state: enabled
+        immediate: yes
+      when: inventory_hostname in groups['tower'] and groups['tower']|length > 1 and firewalld_rabbitmq_enable_manager|bool
+      with_items: "{{ tower_cluster_management_ports }}"
+
+    - name: Enable Standalone Database firewall ports
+      firewalld:
+        port: '{{item}}/tcp'
+        permanent: true
+        state: enabled
+        immediate: yes
+      when: groups['database'] is defined and inventory_hostname in groups['database']
+      with_items: "{{ database_firewall_ports }}"
+
+  rescue:
+    - name: Ensure configuration success
+      fail:
+        msg: "firewalld configuration failed"
+      when: firewalld_running.rc == 0
+
+- block:
+    - name: Ensure iptables is in use
+      fail:
+        msg: "iptables not in use - skipping iptables configuration"
+      when: iptables_installed.rc != 0 or not iptables_exists.stat.exists or not iptables_service.stat.exists
+
+    - name: Enable base Tower firewall ports
+      lineinfile:
+        dest: /etc/sysconfig/iptables
+        state: present
+        regexp: "^.*INPUT.*tcp.*{{item}}.*ACCEPT"
+        insertafter: "^:OUTPUT "
+        line: "-A INPUT -p tcp --dport {{item}} -j ACCEPT"
+      when: inventory_hostname in groups['tower']
+      with_items: "{{ tower_firewall_ports }}"
+      notify: restart iptables
+
+    - name: Enable HA Tower firewall ports
+      lineinfile:
+        dest: /etc/sysconfig/iptables
+        state: present
+        regexp: "^.*INPUT.*tcp.*{{item}}.*ACCEPT"
+        insertafter: "^:OUTPUT "
+        line: "-A INPUT -p tcp --dport {{item}} -j ACCEPT"
+      when: inventory_hostname in groups['tower'] and groups['tower']|length > 1
+      with_items: "{{ tower_firewall_ha_ports }}"
+      notify: restart iptables
+
+    - name: Enable HA Tower firewall management ports
+      lineinfile:
+        dest: /etc/sysconfig/iptables
+        state: present
+        regexp: "^.*INPUT.*tcp.*{{item}}.*ACCEPT"
+        insertafter: "^:OUTPUT "
+        line: "-A INPUT -p tcp --dport {{item}} -j ACCEPT"
+      when: inventory_hostname in groups['tower'] and groups['tower']|length > 1 and firewalld_rabbitmq_enable_manager|bool
+      with_items: "{{ tower_cluster_management_ports }}"
+      notify: restart iptables
+
+    - name: Enable Standalone Database firewall ports
+      lineinfile:
+        dest: /etc/sysconfig/iptables
+        state: present
+        regexp: "^.*INPUT.*tcp.*{{item}}.*ACCEPT"
+        insertafter: "^:OUTPUT "
+        line: "-A INPUT -p tcp --dport {{item}} -j ACCEPT"
+      when: groups['database'] is defined and inventory_hostname in groups['database']
+      with_items: "{{ database_firewall_ports }}"
+      notify: restart iptables
+
+  rescue:
+    - name: Ensure configuration success
+      fail:
+        msg: "iptables configuration failed"
+      when: iptables_installed.rc == 0 and iptables_exists.stat.exists and iptables_service.stat.exists
